@@ -13,6 +13,11 @@ This project is inspired by my project in my CR350E course at Polytechnique Mont
   - [3.1. Monitoring SSH Connections with Wireshark](#31-monitoring-ssh-connections-with-wireshark)
   - [3.2. Apache2 Logging](#32-apache2-logging)
 - [4. Fail2Ban](#4-fail2ban)
+  - [4.1. Installation](#41-installation)
+  - [4.2. Configuration](#42-configuration)
+  - [4.3. Failed Connection Attempts](#43-failed-connection-attempts)
+  - [4.4. Display Active Firewall Rules](#44-display-active-firewall-rules)
+  - [4.5. Disable Active Firewall Rules and Reconnection](#45-disable-active-firewall-rules-and-reconnection)
 - [5. References](#5-references)
 
 ---
@@ -24,7 +29,7 @@ In VirtualBox, I created and configured three virtual machines with the followin
 - Ubuntu01
 - Ubuntu02
 
-Each VM is configured with two network adapters in bridged mode. The first network adapter is manually configured to be in the same subnetwork for my three VMs, while the second one is configured to use DHCP and provides internet access and downloading software via the command line).
+Each VM is configured with two network adapters in bridged mode. The first network adapter is manually configured to be in the same network (192.168.10.0/24) for my three VMs, while the second one is configured to use DHCP and provides internet access and downloading software via the command line).
 
 ![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-30%20212405.png)
 
@@ -153,15 +158,71 @@ As root on Ubuntu01, I checked what the Apache web server logs are in the `/var/
 
 ![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20143051.png)
 
-To redirect my Apache web server logs to my Syslog server, I loaded and configured the `imfile` module, which allows me to read and monitor log files, by modifying the `/etc/rsyslog.d/50-default.conf` file of my Linux01 host.
+To redirect my Apache web server logs to my Rsyslog server, I loaded and configured the `imfile` module, which allows me to read and monitor log files, by modifying the `/etc/rsyslog.d/50-default.conf` file of my Ubuntu01 host.
 
 ![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20143149.png)
 
 ![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20143751.png)
 
+After restarting the Rsyslog service on my Ubuntu01, I accessed my Apache web page several times using the web browser and the curl methods while running the `sudo tail -f /var/log/syslog` command in the background to monitor the logs being sent from Ubuntu01 to Syslog.
+
+![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20152117.png)
+
+![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20152353.png)
+
+To find my Ubuntu02 IP address from my Syslog logs (found in /var/log/syslog), I used the grep "192.168.10.12" /var/log/syslog command (192.168.10.12 is my Ubuntu02 IP address).
+
+![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20152452.png)
+
 ---
 
 ## 4. Fail2Ban
+Fail2Ban works by checking log files (for example, /var/log/auth.log) for suspicious user activity, such as repeated failed login attempts due to incorrect passwords. It also bans the IP addresses of the hosts that try to connect to the host that has Fail2Ban installed by adding firewall rules to block new connection attempts from those hosts for a specified amount of time.
+
+### 4.1. Installation
+I installed Fail2Ban on my Ubuntu01 virtual machine.
+
+![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20144119.png)
+
+I enabled and started the Fail2Ban service at system startup. I also checked its service status.
+
+![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20144236.png)
+
+### 4.2. Configuration
+After navigating to the `/etc/fail2ban/` directory, I made a copy of the `jail.conf` file named `jail.local`, then I added the required configurations in the sshd section of the jail.local file.
+
+![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20144340.png)
+
+![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20152907.png)
+
+After restarting the Fail2Ban service, I checked its status to make sure it was still running.
+
+![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20153007.png)
+
+### 4.3. Failed Connection Attempts
+Using the `sudo fail2ban-client status sshd` command, I can check the number of failed SSH connection attempts and the list of banned hosts. There are currently none.
+
+![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20153047.png)
+
+After two failed SSH connection attempts to Ubuntu01 from Ubuntu02, my Host02 IP address got banned on the third attempt.
+
+![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20153240.png)
+
+![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20153309.png)
+
+### 4.4. Display Active Firewall Rules
+I displayed the active firewall rules on Linux01 using the `sudo iptables -L` command.
+
+![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20153424.png)
+
+### 4.5. Disable Active Firewall Rules and Reconnection
+I disabled all firewall rules using the `sudo iptables -F` command, then I redisplayed the output of iptables with the `sudo iptables -L` command to verify the changes.
+
+![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20153510.png)
+
+I attempted to connect to Ubuntu01 from Ubuntu02 again, and this time, the connection refusal error message did not appear anymore when I attempted an unsuccessful SSH connection and a successful SSH connection.
+
+![](https://github.com/pandathetech/NetworkLogging/blob/main/Assets/Screenshot%202025-12-31%20153646.png)
 
 ---
 
